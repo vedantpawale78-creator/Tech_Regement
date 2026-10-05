@@ -1,0 +1,36 @@
+model:
+  path: yolov8n.pt
+  confidence: 0.40
+  iou: 0.50
+
+camera:
+  id: N1
+
+rules:
+  loiter_seconds: 10
+  abandoned_seconds: 10
+  abandoned_move_pixels: 20
+  abandoned_person_distance_pixels: 150
+
+verification:
+  min_track_age: 3
+  cooldown_seconds: 8
+
+zones:
+  fence:
+    p1: [100, 200]
+    p2: [500, 200]
+  restricted_polygon:
+    - [200, 150]
+    - [600, 150]
+    - [600, 450]
+    - [200, 450]
+
+database:
+  path: data/sentinel.db
+
+output:
+  snaps_dir: snaps
+  clips_dir: clips_out
+  results_dir: results
+  buffer_seconds: 2

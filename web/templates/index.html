@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Semantic Sentinel — AI-Powered Threat Intelligence</title>
+  <meta name="description" content="Semantic Sentinel: Edge AI that converts raw video into compact semantic alerts. No video transmission. Just intelligence.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+
+  <!-- ════════════════════════════════════════════
+       TOP HEADER
+  ════════════════════════════════════════════ -->
+  <header class="app-header">
+    <div class="header-brand">
+      <div class="brand-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+          <path d="M12 2L3 7v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-9-5z"/>
+          <circle cx="12" cy="11" r="2.5"/>
+        </svg>
+      </div>
+      <div>
+        <h1 class="brand-title">Semantic Sentinel</h1>
+        <p class="brand-tagline">EDGE AI · OFFLINE · ZERO VIDEO TRANSMISSION</p>
+      </div>
+    </div>
+
+    <!-- NAVIGATION TABS -->
+    <nav class="nav-tabs" id="navTabs" role="navigation" aria-label="Main navigation">
+      <button class="nav-tab active" data-tab="dashboard" id="tabBtnDashboard" role="tab" aria-selected="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg>
+        Dashboard
+      </button>
+      <button class="nav-tab" data-tab="detection" id="tabBtnDetection" role="tab">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        Detection
+      </button>
+      <button class="nav-tab" data-tab="alerts" id="tabBtnAlerts" role="tab">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+        Alerts <span class="badge-count" id="navAlertCount">0</span>
+      </button>
+      <button class="nav-tab" data-tab="settings" id="tabBtnSettings" role="tab">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        Settings
+      </button>
+    </nav>
+
+    <div class="header-right">
+      <div class="edge-pill">
+        <span class="pulse-indicator"></span>
+        <span>EDGE NODE: ACTIVE</span>
+      </div>
+      <div class="clock-display" id="clockDisplay">--:--:--</div>
+    </div>
+  </header>
+
+  <!-- ════════════════════════════════════════════
+       MAIN CONTENT
+  ════════════════════════════════════════════ -->
+  <main class="main-container">
+
+    <!-- ══════════════════════════════════════════
+         1. DASHBOARD TAB
+    ══════════════════════════════════════════ -->
+    <section class="tab-pane active" id="pane-dashboard" role="tabpanel">
+
+      <!-- 4 KPI Cards -->
+      <div class="kpi-grid">
+        <div class="kpi-card">
+          <div class="kpi-icon-box cyan">👤</div>
+          <div class="kpi-info">
+            <div class="kpi-val" id="dashPersons">0</div>
+            <div class="kpi-name">Persons Tracked</div>
+          </div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-icon-box amber">🎒</div>
+          <div class="kpi-info">
+            <div class="kpi-val" id="dashObjects">0</div>
+            <div class="kpi-name">Objects Detected</div>
+          </div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-icon-box red">⚠️</div>
+          <div class="kpi-info">
+            <div class="kpi-val" id="dashAlerts">0</div>
+            <div class="kpi-name">Active Alerts</div>
+          </div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-icon-box purple">🔴</div>
+          <div class="kpi-info">
+            <div class="kpi-val" id="dashCritical">0</div>
+            <div class="kpi-name">Critical Events</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Dashboard split: Alert Feed | Risk Panel -->
+      <div class="dashboard-split">
+
+        <!-- LEFT: Semantic Alerts Feed -->
+        <div class="dash-panel left-panel">
+          <div class="panel-header">
+            <div class="panel-title">
+              <span class="title-accent red"></span>
+              <h2>Semantic Alert Feed</h2>
+            </div>
+            <button class="btn-ghost" id="refreshAlertsBtn" onclick="fetchAlerts()">↻ Refresh</button>
+          </div>
+          <p class="panel-desc">Only verified, high-confidence events are transmitted. No raw video. Only meaning.</p>
+
+          <div class="semantic-feed-list" id="dashAlertFeed">
+            <div class="empty-state">Standby — no verified alerts detected yet.</div>
+          </div>
+        </div>
+
+        <!-- RIGHT: Risk Breakdown + Demo -->
+        <div class="dash-panel right-panel">
+          <div class="panel-header">
+            <div class="panel-title">
+              <span class="title-accent amber"></span>
+              <h2>Threat Breakdown</h2>
+            </div>
+          </div>
+
+          <div class="risk-breakdown">
+            <div class="risk-pill critical">
+              <span class="dot"></span>
+              <span class="label">Critical</span>
+              <strong id="riskCountCritical">0</strong>
+            </div>
+            <div class="risk-pill high">
+              <span class="dot"></span>
+              <span class="label">High</span>
+              <strong id="riskCountHigh">0</strong>
+            </div>
+            <div class="risk-pill medium">
+              <span class="dot"></span>
+              <span class="label">Medium</span>
+              <strong id="riskCountMedium">0</strong>
+            </div>
+            <div class="risk-pill low">
+              <span class="dot"></span>
+              <span class="label">Low</span>
+              <strong id="riskCountLow">0</strong>
+            </div>
+          </div>
+
+          <!-- Demo Scenario Injector -->
+          <div class="quick-injector">
+            <div class="inj-title">Demo Scenario Injector</div>
+            <div class="inj-buttons">
+              <button class="btn-inj red" id="btnInjectZone" onclick="injectScenario('zone_entry')">⚠️ Force Zone Entry Alert</button>
+              <button class="btn-inj purple" id="btnInjectLoiter" onclick="injectScenario('loitering')">🔴 Force Loitering Alert</button>
+              <button class="btn-inj amber" id="btnInjectBag" onclick="injectScenario('abandoned_object')">🎒 Force Unattended Gear</button>
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+    </section>
+
+
+    <!-- ══════════════════════════════════════════
+         2. DETECTION TAB
+    ══════════════════════════════════════════ -->
+    <section class="tab-pane" id="pane-detection" role="tabpanel">
+
+      <!-- Source Selector Bar -->
+      <div class="source-bar">
+        <div class="source-buttons">
+          <span class="source-label">Video Source:</span>
+          <button class="btn-source" id="btnSrcLive" onclick="setLiveCamera()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>
+            Live Camera
+          </button>
+          <label class="btn-source" id="btnSrcUpload">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            Upload Video
+            <input type="file" id="videoFileInput" accept="video/*" style="display:none;" onchange="handleVideoUpload(this)">
+          </label>
+          <div class="demo-dropdown-wrap">
+            <button class="btn-source active" id="btnDemoDropdown" onclick="toggleDemoDropdown()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+              <span id="activeDemoLabel">Demo: fence.mp4</span> ▾
+            </button>
+            <div class="demo-menu" id="demoMenu">
+              <div class="demo-item active" onclick="selectDemoVideo('fence.mp4', 'Perimeter Fence Intrusion')" id="demoOpt1">
+                <strong>fence.mp4</strong>
+                <span>Fence breach · Zone entry</span>
+              </div>
+              <div class="demo-item" onclick="selectDemoVideo('loiter.mp4', 'Restricted Zone Loitering')" id="demoOpt2">
+                <strong>loiter.mp4</strong>
+                <span>Prolonged dwell · Critical threat</span>
+              </div>
+              <div class="demo-item" onclick="selectDemoVideo('bag.mp4', 'Abandoned Baggage')" id="demoOpt3">
+                <strong>bag.mp4</strong>
+                <span>Stationary gear · Unattended</span>
+              </div>
+              <div class="demo-item" onclick="selectDemoVideo('VID-20261003-WA0020.mp4', 'Field Surveillance')" id="demoOpt4">
+                <strong>VID-20261003...</strong>
+                <span>Real movement feed</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="source-info">
+          <span class="info-label">Current:</span>
+          <strong class="info-filename" id="currentSourceFilename">fence.mp4</strong>
+          <span class="status-chip ready" id="analysisStateChip">STANDBY</span>
+        </div>
+      </div>
+
+      <!-- Detection Stage -->
+      <div class="detection-stage">
+
+        <!-- Video Card -->
+        <div class="video-container-card">
+          <div class="video-inner-wrap" id="videoContainer">
+            <img id="liveVideo" class="detection-img" src="/api/video_feed" alt="Surveillance Stream" onload="syncCanvasSize()">
+            <canvas id="zoneCanvas" class="drawing-overlay"></canvas>
+          </div>
+
+          <!-- Controls under video -->
+          <div class="video-control-bar">
+            <div class="playback-controls">
+              <button class="btn-ctrl primary" id="btnStartAnalysis" onclick="startAnalysis()">▶ Start Analysis</button>
+              <button class="btn-ctrl" id="btnPauseResume" onclick="togglePause()">⏸ Pause</button>
+              <button class="btn-ctrl" id="btnStopAnalysis" onclick="stopAnalysis()">■ Stop</button>
+              <button class="btn-ctrl" id="btnRestartAnalysis" onclick="restartAnalysis()">↺ Restart</button>
+            </div>
+            <div class="zone-controls">
+              <button class="btn-ctrl autozone-btn" id="btnAutoZone" onclick="autoDetectZone()">⚡ Auto-Detect Zone</button>
+              <button class="btn-ctrl zone-btn" id="btnDrawZone" onclick="toggleZoneDrawing()">✏ Draw Custom Zone</button>
+              <button class="btn-ctrl clear-btn" id="btnClearZone" onclick="clearZone()">🗑 Clear Zone</button>
+            </div>
+          </div>
+
+          <div class="drawing-instructions" id="drawingHint" style="display: none;">
+            <span>ℹ <strong>Zone Drawing Mode:</strong> Click on the video to place perimeter points. Double-click or click the first point to close and save the zone.</span>
+          </div>
+        </div>
+
+        <!-- Live Status Card -->
+        <div class="live-status-card">
+          <div class="status-card-header">
+            <h3>Live Detection</h3>
+            <span class="fps-pill" id="fpsDisplay">-- FPS</span>
+          </div>
+
+          <div class="status-stat-grid">
+            <div class="stat-box">
+              <div class="stat-number cyan" id="statPersons">0</div>
+              <div class="stat-label">Persons</div>
+            </div>
+            <div class="stat-box">
+              <div class="stat-number amber" id="statObjects">0</div>
+              <div class="stat-label">Objects</div>
+            </div>
+            <div class="stat-box">
+              <div class="stat-number red" id="statAlerts">0</div>
+              <div class="stat-label">Alerts</div>
+            </div>
+          </div>
+
+          <!-- Latest Semantic Alert -->
+          <div class="latest-alert-box" id="latestAlertBox">
+            <div class="la-header">
+              <span class="la-badge nominal" id="latestAlertBadge">NOMINAL</span>
+              <span class="la-time" id="latestAlertTime">--:--:--</span>
+            </div>
+            <h4 class="la-title" id="latestAlertTitle">All Clear</h4>
+            <div class="la-object" id="latestAlertObject">No active zone breach</div>
+            <p class="la-reason" id="latestAlertReason">Perimeter is secure. No unauthorized intrusion detected.</p>
+          </div>
+
+          <!-- Active Track IDs -->
+          <div class="tracks-card">
+            <div class="tracks-title">Active Track IDs</div>
+            <div class="tracks-list" id="tracksList">
+              <div class="track-empty-note">Awaiting detection…</div>
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+    </section>
+
+
+    <!-- ══════════════════════════════════════════
+         3. ALERTS TAB
+    ══════════════════════════════════════════ -->
+    <section class="tab-pane" id="pane-alerts" role="tabpanel">
+      <div class="alerts-view-card">
+
+        <div class="alerts-toolbar">
+          <div class="filter-group">
+            <span class="filter-label">Filter:</span>
+            <button class="filter-btn active" id="fAll" onclick="setSeverityFilter('ALL', this)">All</button>
+            <button class="filter-btn red" id="fCritical" onclick="setSeverityFilter('CRITICAL', this)">Critical</button>
+            <button class="filter-btn orange" id="fHigh" onclick="setSeverityFilter('HIGH', this)">High</button>
+            <button class="filter-btn amber" id="fMedium" onclick="setSeverityFilter('MEDIUM', this)">Medium</button>
+            <button class="filter-btn green" id="fLow" onclick="setSeverityFilter('LOW', this)">Low</button>
+          </div>
+          <div class="toolbar-right">
+            <input type="text" class="table-search" id="alertTableSearch" placeholder="Search event, object, reason…" oninput="filterAlertTable()">
+            <button class="btn-export" id="btnExportJson" onclick="exportAlerts('json')">Export JSON</button>
+            <button class="btn-export" id="btnExportCsv" onclick="exportAlerts('csv')">Export CSV</button>
+          </div>
+        </div>
+
+        <div class="table-wrap">
+          <table class="semantic-table" id="alertsTable" aria-label="Semantic alerts table">
+            <thead>
+              <tr>
+                <th style="width:110px;">Severity</th>
+                <th style="width:180px;">Event</th>
+                <th style="width:120px;">Object</th>
+                <th style="width:90px;">Track ID</th>
+                <th style="width:105px;">Time</th>
+                <th>Why It's Dangerous</th>
+              </tr>
+            </thead>
+            <tbody id="alertsTableBody">
+              <tr>
+                <td colspan="6" class="empty-table-cell">Loading verified alerts…</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+      </div>
+    </section>
+
+
+    <!-- ══════════════════════════════════════════
+         4. SETTINGS TAB
+    ══════════════════════════════════════════ -->
+    <section class="tab-pane" id="pane-settings" role="tabpanel">
+      <div class="settings-card-wrapper">
+        <div class="settings-box">
+          <div class="settings-header">
+            <h2>System Configuration</h2>
+            <p>Adjust contextual evaluation thresholds for offline edge AI inference.</p>
+          </div>
+
+          <div class="setting-item">
+            <div class="setting-meta">
+              <label for="confRange">Detection Confidence Threshold</label>
+              <span class="setting-val" id="confVal">0.40</span>
+            </div>
+            <input type="range" id="confRange" min="0.15" max="0.85" step="0.05" value="0.40"
+              oninput="document.getElementById('confVal').textContent = parseFloat(this.value).toFixed(2)">
+            <span class="setting-desc">Minimum confidence required before a YOLOv8 detection is accepted into tracking.</span>
+          </div>
+
+          <div class="setting-item">
+            <div class="setting-meta">
+              <label for="loiterRange">Loitering Dwell Time</label>
+              <span class="setting-val" id="loiterVal">10s</span>
+            </div>
+            <input type="range" id="loiterRange" min="4" max="45" step="1" value="10"
+              oninput="document.getElementById('loiterVal').textContent = this.value + 's'">
+            <span class="setting-desc">Continuous seconds inside a restricted zone before escalating threat from HIGH to CRITICAL.</span>
+          </div>
+
+          <div class="setting-item">
+            <div class="setting-meta">
+              <label for="cooldownRange">Alert Suppression Cooldown</label>
+              <span class="setting-val" id="cooldownVal">6s</span>
+            </div>
+            <input type="range" id="cooldownRange" min="2" max="25" step="1" value="6"
+              oninput="document.getElementById('cooldownVal').textContent = this.value + 's'">
+            <span class="setting-desc">Prevents duplicate alert spamming for the same object within this time window.</span>
+          </div>
+
+          <div class="setting-item">
+            <div class="setting-meta">
+              <span>Edge AI Model</span>
+              <strong style="color: #2563eb; font-family: 'Space Mono', monospace; font-size: 0.75rem;">YOLOv8n · Offline CPU</strong>
+            </div>
+            <span class="setting-desc">Runs 100% locally — no internet, no cloud, no video transmission required.</span>
+          </div>
+
+          <div class="settings-actions">
+            <button class="btn-ctrl primary" id="btnSaveSettings" onclick="saveSettings()">Save Settings</button>
+            <span class="save-msg" id="settingsSaveMsg"></span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Toast Notifications -->
+  <div class="toast-stack" id="toastStack" aria-live="polite"></div>
+
+  <script src="/static/js/app.js"></script>
+</body>
+</html>

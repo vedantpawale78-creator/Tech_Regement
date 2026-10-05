@@ -1,0 +1,10 @@
+ultralytics
+opencv-python
+numpy
+pyyaml
+streamlit>=1.28.0
+pandas
+plotly
+pillow
+psutil
+pytest
