@@ -113,74 +113,74 @@ class EventEngine:
             trk["zone_state"] = "OUTSIDE"
             trk["dwell_time"] = 0.0
 
-            if cls_name == "person":
-                for zone in self._zones:
-                    polygon = zone.get("polygon", [])
-                    if not polygon or len(polygon) < 3:
-                        continue
-                    zone_id = zone.get("id", 1)
-                    zone_name = zone.get("zone_name", "Restricted Area")
-                    state_key = f"{tid}_{zone_id}"
+            # Zone boundary events for ALL objects
+            for zone in self._zones:
+                polygon = zone.get("polygon", [])
+                if not polygon or len(polygon) < 3:
+                    continue
+                zone_id = zone.get("id", 1)
+                zone_name = zone.get("zone_name", "Restricted Area")
+                state_key = f"{tid}_{zone_id}"
 
-                    # Use foot contact point (bottom-center) for zone boundary testing
-                    in_zone = _is_point_in_polygon(bottom_center, polygon, frame_shape)
-                    prev_state = self._zone_states.get(state_key, "OUTSIDE")
+                # Use foot contact point (bottom-center) for zone boundary testing
+                in_zone = _is_point_in_polygon(bottom_center, polygon, frame_shape)
+                prev_state = self._zone_states.get(state_key, "OUTSIDE")
 
-                    if in_zone:
-                        if prev_state in ("OUTSIDE", "EXITED"):
-                            # TRANSITION: Entered the zone
-                            self._zone_states[state_key] = "ENTERED"
-                            self._zone_enter_t[state_key] = now
-                            self._loiter_alerted[state_key] = False
-                            trk["zone_state"] = "ENTERED"
+                if in_zone:
+                    if prev_state in ("OUTSIDE", "EXITED"):
+                        # TRANSITION: Entered the zone
+                        self._zone_states[state_key] = "ENTERED"
+                        self._zone_enter_t[state_key] = now
+                        self._loiter_alerted[state_key] = False
+                        trk["zone_state"] = "ENTERED"
 
-                            ev = self._make_event(
-                                "ZONE_ENTRY", tid, cls_name,
-                                zone_name=zone_name,
-                                conf=conf,
-                                extra={"direction": "ENTER", "zone_id": zone_id, "track_age": age}
-                            )
-                            if ev:
-                                events.append(ev)
-
-                        else:
-                            # TRANSITION: Inside the zone, dwell tracking
-                            self._zone_states[state_key] = "INSIDE"
-                            trk["zone_state"] = "INSIDE"
-                            enter_time = self._zone_enter_t.get(state_key, now)
-                            dwell = now - enter_time
-                            trk["dwell_time"] = round(dwell, 1)
-
-                            if dwell >= self.loiter_seconds and not self._loiter_alerted.get(state_key, False):
-                                self._loiter_alerted[state_key] = True
-                                ev = self._make_event(
-                                    "LOITERING", tid, cls_name,
-                                    zone_name=zone_name,
-                                    conf=conf,
-                                    extra={"duration": dwell, "zone_id": zone_id, "track_age": age}
-                                )
-                                if ev:
-                                    events.append(ev)
+                        ev = self._make_event(
+                            "ZONE_ENTRY", tid, cls_name,
+                            zone_name=zone_name,
+                            conf=conf,
+                            extra={"direction": "ENTER", "zone_id": zone_id, "track_age": age}
+                        )
+                        if ev:
+                            events.append(ev)
 
                     else:
-                        if prev_state in ("ENTERED", "INSIDE"):
-                            # TRANSITION: Exited the zone
-                            self._zone_states[state_key] = "EXITED"
-                            trk["zone_state"] = "EXITED"
-                            enter_time = self._zone_enter_t.pop(state_key, now)
-                            total_dwell = now - enter_time
-                            self._loiter_alerted.pop(state_key, None)
+                        # TRANSITION: Inside the zone, dwell tracking
+                        self._zone_states[state_key] = "INSIDE"
+                        trk["zone_state"] = "INSIDE"
+                        enter_time = self._zone_enter_t.get(state_key, now)
+                        dwell = now - enter_time
+                        trk["dwell_time"] = round(dwell, 1)
 
+                        if dwell >= self.loiter_seconds and not self._loiter_alerted.get(state_key, False):
+                            self._loiter_alerted[state_key] = True
                             ev = self._make_event(
-                                "ZONE_EXIT", tid, cls_name,
+                                "LOITERING", tid, cls_name,
                                 zone_name=zone_name,
                                 conf=conf,
-                                extra={"direction": "EXIT", "zone_id": zone_id, "duration": total_dwell, "track_age": age}
+                                extra={"duration": dwell, "zone_id": zone_id, "track_age": age}
                             )
                             if ev:
                                 events.append(ev)
-                        else:
-                            self._zone_states[state_key] = "OUTSIDE"
+
+                else:
+                    if prev_state in ("ENTERED", "INSIDE"):
+                        # TRANSITION: Exited the zone
+                        self._zone_states[state_key] = "EXITED"
+                        trk["zone_state"] = "EXITED"
+                        enter_time = self._zone_enter_t.pop(state_key, now)
+                        total_dwell = now - enter_time
+                        self._loiter_alerted.pop(state_key, None)
+
+                        ev = self._make_event(
+                            "ZONE_EXIT", tid, cls_name,
+                            zone_name=zone_name,
+                            conf=conf,
+                            extra={"direction": "EXIT", "zone_id": zone_id, "duration": total_dwell, "track_age": age}
+                        )
+                        if ev:
+                            events.append(ev)
+                    else:
+                        self._zone_states[state_key] = "OUTSIDE"
 
             # --- Suspicious Abandoned Object (backpack, handbag, suitcase) ---
             if cls_name in ("backpack", "handbag", "suitcase"):

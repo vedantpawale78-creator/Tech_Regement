@@ -26,6 +26,13 @@ class SemanticAlertEngine:
         "Verification: {verification_state}"
     )
 
+    _counter = 1000
+
+    @classmethod
+    def _generate_event_id(cls) -> str:
+        cls._counter += 1
+        return f"SS-{cls._counter:05d}"
+
     def __init__(self, database, camera_id: str = "CAM-01"):
         self.db        = database
         self.camera_id = camera_id
@@ -72,6 +79,7 @@ class SemanticAlertEngine:
 
     def _build_alert(self, assessment: dict) -> dict:
         ts         = datetime.now().isoformat()
+        event_id   = assessment.get("event_id") or self._generate_event_id()
         event_type = assessment.get("type", "UNKNOWN")
         track_id   = assessment.get("track_id", 0)
         cls_name   = assessment.get("object_class", "unknown")
@@ -81,6 +89,10 @@ class SemanticAlertEngine:
         confidence = float(assessment.get("conf", assessment.get("confidence", 0.0)))
         duration   = float(assessment.get("duration",
                            assessment.get("stationary_seconds", 0.0)))
+        risk_score = int(assessment.get("risk_score", 0))
+        risk_reasons = assessment.get("risk_reasons", [])
+        persistence = int(assessment.get("persistence", assessment.get("track_age", 0)))
+        alert_status = assessment.get("alert_status", "NEW")
 
         compact_msg = self.ALERT_FORMAT.format(
             camera_id          = self.camera_id,
@@ -94,7 +106,22 @@ class SemanticAlertEngine:
 
         payload_bytes = len(compact_msg.encode("utf-8"))
 
+        # Human-readable semantic statement for operator and situational reports
+        obj_label = cls_name.replace("_", " ").capitalize()
+        zone_label = zone_name if zone_name else "Restricted Sector Alpha"
+        if event_type == "LOITERING":
+            semantic_msg = f"{obj_label} #{track_id} remained inside {zone_label} for {duration:.1f} seconds. Event classified as {severity}."
+        elif event_type in ("ZONE_ENTRY", "FENCE_CROSSING"):
+            semantic_msg = f"{obj_label} #{track_id} breached {zone_label} perimeter. Event classified as {severity}."
+        elif event_type == "ABANDONED_OBJECT":
+            semantic_msg = f"Stationary {cls_name} left unattended for {duration:.1f} seconds. Event classified as {severity}."
+        elif event_type == "ZONE_EXIT":
+            semantic_msg = f"{obj_label} #{track_id} exited {zone_label} after {duration:.1f} seconds. Event classified as {severity}."
+        else:
+            semantic_msg = f"{obj_label} #{track_id} tracked in monitored sector. Event classified as {severity}."
+
         return {
+            "event_id":           event_id,
             "timestamp":          ts,
             "camera_id":          self.camera_id,
             "event_type":         event_type,
@@ -104,6 +131,7 @@ class SemanticAlertEngine:
             "confidence":         confidence,
             "severity":           severity,
             "message":            compact_msg,
+            "semantic_message":   semantic_msg,
             "snapshot_path":      assessment.get("snapshot_path"),
             "verified":           assessment.get("verified", False),
             "suppression_reason": assessment.get("suppression_reason"),
@@ -113,4 +141,8 @@ class SemanticAlertEngine:
             "verification_state": v_state,
             "zone_name":          zone_name,
             "alert_payload_bytes": payload_bytes,
+            "risk_score":         risk_score,
+            "risk_reasons":       risk_reasons,
+            "persistence":        persistence,
+            "alert_status":       alert_status,
         }

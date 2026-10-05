@@ -66,9 +66,8 @@ class Detector:
         """
         self._load()
         t0 = time.time()
-        results = self._model.track(
+        results = self._model.predict(
             frame,
-            persist=True,
             conf=self.confidence,
             iou=self.iou,
             imgsz=480,
@@ -82,12 +81,8 @@ class Detector:
             clss = results[0].boxes.cls.cpu().tolist()
             confs = results[0].boxes.conf.cpu().tolist()
             
-            # Check if tracker assigned IDs
-            if results[0].boxes.id is not None:
-                track_ids = results[0].boxes.id.int().cpu().tolist()
-            else:
-                # Fallback: maintain persistent simple tracking IDs if ByteTrack didn't assign
-                track_ids = self._assign_fallback_ids(boxes, clss)
+            # Use centroid tracking for all objects to ensure stationary bags are kept
+            track_ids = self._assign_fallback_ids(boxes, clss)
 
             for box, tid, cls, conf in zip(boxes, track_ids, clss, confs):
                 cls_name = self._model.names[int(cls)]

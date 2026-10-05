@@ -186,9 +186,9 @@ class TestEventEngine:
         for _ in range(5):
             event_engine.process_frame([track])
 
-        # Hack the loiter state time to simulate dwell
+        # Hack the loiter enter time to simulate dwell
         key = f"{tid}_1"
-        event_engine._loiter_state[key] = time.time() - 3  # 3s dwell (thresh=2)
+        event_engine._zone_enter_t[key] = time.time() - 3  # 3s dwell (thresh=2)
 
         events = event_engine.process_frame([track])
         loiter_events = [e for e in events if e["type"] == "LOITERING"]

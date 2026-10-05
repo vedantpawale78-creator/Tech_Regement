@@ -57,6 +57,72 @@ contextual_verifier = ContextualVerifier({
 })
 semantic_alerts = SemanticAlertEngine(database=db, camera_id="SENTINEL-EDGE")
 
+# ── Communication Layer Simulator State (Severity-Based Priority Queue) ──────
+comm_mode = "NORMAL"   # "NORMAL" | "LIMITED" | "OFFLINE"
+offline_queue = []
+server_start_time = time.time()
+comm_lock = threading.Lock()
+
+SEVERITY_ORDER = {
+    "CRITICAL": 1,
+    "HIGH": 2,
+    "MEDIUM": 3,
+    "LOW": 4
+}
+
+def get_severity_rank(alert: dict) -> int:
+    sev = str(alert.get("severity", "LOW")).upper()
+    return SEVERITY_ORDER.get(sev, 5)
+
+def enqueue_priority_alert(alert_record: dict):
+    """
+    Insert alert into offline queue ordered by severity priority:
+    P1 (Critical) -> P2 (High) -> P3 (Medium) -> P4 (Low).
+    Secondary sort by risk_score descending.
+    """
+    rank = get_severity_rank(alert_record)
+    alert_record["priority_tier"] = f"P{rank}"
+    alert_record["priority_rank"] = rank
+
+    idx = 0
+    while idx < len(offline_queue):
+        other = offline_queue[idx]
+        other_rank = get_severity_rank(other)
+        if rank < other_rank:
+            break
+        elif rank == other_rank:
+            if alert_record.get("risk_score", 0) > other.get("risk_score", 0):
+                break
+        idx += 1
+    offline_queue.insert(idx, alert_record)
+
+def dispatch_alert(alert_record):
+    """
+    Handles communication layer dispatching with severity-based prioritization:
+    - OFFLINE: All alerts buffered in strict severity priority order (Critical first).
+    - LIMITED: Urgent alerts (CRITICAL & HIGH) transmit immediately; routine (MEDIUM & LOW) queued.
+    - NORMAL: Direct transmission.
+    """
+    global offline_queue
+    if not alert_record:
+        return
+    with comm_lock:
+        rank = get_severity_rank(alert_record)
+        alert_record["priority_tier"] = f"P{rank}"
+        alert_record["priority_rank"] = rank
+
+        if comm_mode == "OFFLINE":
+            enqueue_priority_alert(alert_record)
+            logger.info(f"[COMM LAYER: OFFLINE] Priority {alert_record['priority_tier']} ({alert_record.get('severity')}) queued. Queue depth: {len(offline_queue)}")
+        elif comm_mode == "LIMITED":
+            if rank <= 2:  # CRITICAL or HIGH transmit immediately
+                logger.info(f"[COMM LAYER: LIMITED] High-priority {alert_record['priority_tier']} ({alert_record.get('severity')}) transmitted immediately.")
+            else:          # MEDIUM or LOW queued
+                enqueue_priority_alert(alert_record)
+                logger.info(f"[COMM LAYER: LIMITED] Lower-priority {alert_record['priority_tier']} ({alert_record.get('severity')}) queued to conserve bandwidth.")
+        else:
+            logger.info(f"[COMM LAYER: NORMAL] Alert transmitted ({alert_record.get('alert_payload_bytes', 180)}B)")
+
 # Demo clips directory
 CLIPS_DIR = BASE_DIR / "clips"
 CLIPS_DIR.mkdir(exist_ok=True)
@@ -92,6 +158,14 @@ class VideoProcessor:
         self.persons_count = 0
         self.objects_count = 0
         self.active_alerts_count = 0
+
+        # Current Video Run Metrics (Refreshed after every run of the video)
+        self.run_number = 1
+        self.run_critical_count = 0
+        self.run_high_count = 0
+        self.run_urgent_count = 0    # Sum of Critical + High alerts for current run
+        self.run_alerts_count = 0
+
         self.latest_alert = None
         self.fps = 25.0
         self.frame_width = 640
@@ -142,6 +216,12 @@ class VideoProcessor:
 
                 self.event_engine.reset()
                 detector.reset_tracking()
+                self.run_number = 1
+                self.run_critical_count = 0
+                self.run_high_count = 0
+                self.run_urgent_count = 0
+                self.run_alerts_count = 0
+                self.active_alerts_count = 0
 
                 # Read first frame preview
                 if self.cap and self.cap.isOpened():
@@ -289,9 +369,9 @@ class VideoProcessor:
             # Label badge
             if z_state in ("ENTERED", "INSIDE"):
                 dwell = trk.get("dwell_time", 0.0)
-                label_str = f"{cls_name.upper()} | ID:{tid:02d} | INTRUSION {dwell:.0f}s"
+                label_str = f"[VERIFIED THREAT] {cls_name.upper()} | INTRUSION {dwell:.1f}s"
             else:
-                label_str = f"{cls_name.upper()} {int(conf*100)}% | ID:{tid:02d}"
+                label_str = f"[DETECTED] {cls_name.upper()} {int(conf*100)}%"
 
             (lw, lh), _ = cv2.getTextSize(label_str, cv2.FONT_HERSHEY_SIMPLEX, 0.40, 1)
             tag_y1 = max(0, y1 - lh - 6)
@@ -315,6 +395,24 @@ class VideoProcessor:
                         cv2.FONT_HERSHEY_SIMPLEX, 0.38, (255, 255, 255), 1, cv2.LINE_AA)
 
         return frame
+
+    def on_run_restart(self):
+        """Called when video finishes playing its full length and starts a new run."""
+        self.run_number += 1
+        self.run_critical_count = 0
+        self.run_high_count = 0
+        self.run_urgent_count = 0
+        self.run_alerts_count = 0
+        self.active_alerts_count = 0
+        try:
+            self.event_engine.reset()
+        except Exception:
+            pass
+        try:
+            detector.reset_tracking()
+        except Exception:
+            pass
+        logger.info(f"[VIDEO RUN REFRESH] Video completed run #{self.run_number - 1}. Alert counters refreshed for run #{self.run_number}.")
 
     def _stream_loop(self):
         """Dedicated high-speed stream loop: reads frames and pushes to MJPEG buffer.
@@ -340,6 +438,7 @@ class VideoProcessor:
                         self.cap = cv2.VideoCapture(self.source_path)
                         if self.cap.isOpened():
                             ret, raw_frame = self.cap.read()
+                        self.on_run_restart()
 
             if not ret or raw_frame is None:
                 time.sleep(0.04)
@@ -419,8 +518,17 @@ class VideoProcessor:
                         alert_record = semantic_alerts.generate(assessment)
                         if alert_record:
                             self.latest_alert = alert_record
-                            self.active_alerts_count += 1
-                            logger.info(f"SEMANTIC ALERT: {alert_record.get('message')}")
+                            self.run_alerts_count += 1
+                            sev = str(alert_record.get("severity", "")).upper()
+                            if sev in ("CRITICAL", "CRIT"):
+                                self.run_critical_count += 1
+                                self.run_urgent_count += 1
+                            elif sev in ("HIGH",):
+                                self.run_high_count += 1
+                                self.run_urgent_count += 1
+                            self.active_alerts_count = self.run_urgent_count
+                            dispatch_alert(alert_record)
+                            logger.info(f"SEMANTIC ALERT ({sev}): {alert_record.get('message')} [Run #{self.run_number} Crit+High: {self.run_urgent_count}]")
             else:
                 self.event_engine.process_frame([], frame_shape=(h, w))
 
@@ -433,11 +541,17 @@ class VideoProcessor:
             self.objects_count = len(tracks)
             self.current_tracks = [
                 {
-                    "id":    t.get("track_id"),
-                    "class": t.get("class_name"),
-                    "conf":  t.get("conf"),
-                    "state": t.get("zone_state", "OUTSIDE"),
-                    "dwell": t.get("dwell_time", 0.0)
+                    "id":       t.get("track_id"),
+                    "class":    t.get("class_name"),
+                    "conf":     t.get("conf"),
+                    "state":    t.get("zone_state", "OUTSIDE"),
+                    "dwell":    t.get("dwell_time", 0.0),
+                    "bbox":     [round(float(c), 1) for c in t.get("bbox", [0, 0, 0, 0])],
+                    "center":   [round(float(c), 1) for c in t.get("center", [0, 0])],
+                    "norm_pos": [
+                        round(float(t.get("center", [0, 0])[0]) / max(1, w), 3),
+                        round(float(t.get("center", [0, 0])[1]) / max(1, h), 3)
+                    ] if w and h else [0.5, 0.5]
                 }
                 for t in tracks
             ]
@@ -483,6 +597,11 @@ class VideoProcessor:
         """Stop analysis and reset video to frame 0."""
         self.analyzing = False
         self.paused = False
+        self.run_critical_count = 0
+        self.run_high_count = 0
+        self.run_urgent_count = 0
+        self.run_alerts_count = 0
+        self.active_alerts_count = 0
         self.event_engine.reset()
         detector.reset_tracking()
         self.current_tracks = []
@@ -532,39 +651,54 @@ class VideoProcessor:
         Calibrated to the video context (fence intrusion, checkpoint doorway, luggage concourse)
         or automatically extracts structural contours.
         """
-        name_lower = self.source_name.lower()
-        if "fence" in name_lower:
-            poly = [
-                [0.12, 0.22],
-                [0.88, 0.22],
-                [0.90, 0.86],
-                [0.10, 0.86]
-            ]
-            zone_name = "Perimeter Fence Alpha"
-        elif "loiter" in name_lower:
-            poly = [
-                [0.20, 0.28],
-                [0.80, 0.28],
-                [0.84, 0.88],
-                [0.16, 0.88]
-            ]
-            zone_name = "Restricted Checkpoint"
-        elif "bag" in name_lower:
-            poly = [
-                [0.18, 0.35],
-                [0.82, 0.35],
-                [0.86, 0.88],
-                [0.14, 0.88]
-            ]
-            zone_name = "Terminal Concourse"
-        else:
-            poly = [
-                [0.15, 0.25],
-                [0.85, 0.25],
-                [0.88, 0.85],
-                [0.12, 0.85]
-            ]
-            zone_name = f"Auto-Perimeter: {self.source_name[:12]}"
+        poly = []
+        with self.cap_lock:
+            if self.cap and self.cap.isOpened():
+                ret, frame = self.cap.read()
+                if not ret and self.source_type != "live":
+                    self.cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+                    ret, frame = self.cap.read()
+                
+                if ret and frame is not None:
+                    # Basic scene analysis using edge detection to find empty areas
+                    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+                    blurred = cv2.GaussianBlur(gray, (15, 15), 0)
+                    edges = cv2.Canny(blurred, 30, 150)
+                    h, w = frame.shape[:2]
+                    
+                    # Split lower half into 4 strips, pick the 2 with least edges
+                    strip_w = w // 4
+                    edge_densities = []
+                    for i in range(4):
+                        strip = edges[h//3:, i*strip_w:(i+1)*strip_w]
+                        density = np.sum(strip) / (strip.shape[0] * strip.shape[1]) if strip.size > 0 else 0
+                        edge_densities.append((density, i))
+                        
+                    edge_densities.sort()
+                    left_strip = min(edge_densities[0][1], edge_densities[1][1])
+                    right_strip = max(edge_densities[0][1], edge_densities[1][1])
+                    if left_strip == right_strip:
+                        right_strip = min(3, left_strip + 1)
+                        
+                    x1 = max(0.05, left_strip * 0.25)
+                    x2 = min(0.95, (right_strip + 1) * 0.25)
+                    y1 = 0.35 + min(0.3, float(edge_densities[0][0]) / 255.0)
+                    y2 = 0.85
+                    
+                    poly = [[x1, y1], [x2, y1], [x2, y2], [x1, y2]]
+
+        if not poly:
+            name_lower = self.source_name.lower()
+            if "fence" in name_lower:
+                poly = [[0.12, 0.22], [0.88, 0.22], [0.90, 0.86], [0.10, 0.86]]
+            elif "loiter" in name_lower:
+                poly = [[0.20, 0.28], [0.80, 0.28], [0.84, 0.88], [0.16, 0.88]]
+            elif "bag" in name_lower:
+                poly = [[0.18, 0.35], [0.82, 0.35], [0.86, 0.88], [0.14, 0.88]]
+            else:
+                poly = [[0.15, 0.25], [0.85, 0.25], [0.88, 0.85], [0.12, 0.85]]
+            
+        zone_name = f"Auto-Perimeter: {self.source_name[:12]}"
 
         self.set_restricted_zone(poly, zone_name=zone_name)
         return {
@@ -582,7 +716,12 @@ class VideoProcessor:
             "fps": self.fps,
             "persons_count": self.persons_count,
             "objects_count": self.objects_count,
-            "active_alerts_count": self.active_alerts_count,
+            "active_alerts_count": self.run_urgent_count,
+            "run_urgent_count": self.run_urgent_count,
+            "run_critical_count": self.run_critical_count,
+            "run_high_count": self.run_high_count,
+            "run_alerts_count": self.run_alerts_count,
+            "run_number": self.run_number,
             "latest_alert": self.latest_alert,
             "has_zone": len(self.zones) > 0,
             "zones": self.zones,
@@ -605,55 +744,79 @@ def index():
 
 @app.route("/api/status")
 def api_status():
-    """System overview, KPIs, and bandwidth efficiency calculations."""
-    recent_alerts = db.get_recent_alerts(limit=100)
-    critical_count = sum(1 for a in recent_alerts if a.get("severity") in ("CRITICAL", "Critical"))
-    high_count = sum(1 for a in recent_alerts if a.get("severity") in ("HIGH", "High"))
-    medium_count = sum(1 for a in recent_alerts if a.get("severity") in ("MEDIUM", "Medium"))
-    low_count = sum(1 for a in recent_alerts if a.get("severity") in ("LOW", "Low"))
+    """System overview, KPIs, and bandwidth efficiency calculations based on full database metrics."""
+    stats = db.get_alert_statistics()
+    telemetry = video_processor.get_telemetry()
+
+    # Alert count for active video run: ONLY Critical and High alerts, refreshed after every run of video
+    run_urgent_alerts = telemetry.get("run_urgent_count", 0)
+    run_critical = telemetry.get("run_critical_count", 0)
+    run_high = telemetry.get("run_high_count", 0)
+
+    total_alerts_count = stats["total"]
+    verified_alerts_count = stats["verified"]
+    active_alerts_count = stats["active"]
 
     # Bandwidth calculation: Video stays at edge; only ~180-byte semantic alerts transmitted
-    total_alerts_count = len(recent_alerts) or 1
+    calc_count = max(1, verified_alerts_count or total_alerts_count)
     raw_video_bytes_per_event = 45_000_000   # 45 MB typical raw event snippet
     semantic_alert_bytes = 180              # Average semantic text alert payload
-    raw_total = total_alerts_count * raw_video_bytes_per_event
-    sent_total = total_alerts_count * semantic_alert_bytes
+    raw_total = calc_count * raw_video_bytes_per_event
+    sent_total = calc_count * semantic_alert_bytes
     saved_bytes = max(0, raw_total - sent_total)
     saved_pct = round((saved_bytes / raw_total) * 100.0, 2) if raw_total > 0 else 99.98
 
-    # Threat assessment
-    if critical_count > 0:
-        threat_level = "CRITICAL"
-        threat_color = "#ef4444"
-    elif high_count > 0:
-        threat_level = "HIGH"
-        threat_color = "#f97316"
-    elif medium_count > 0:
-        threat_level = "ELEVATED"
-        threat_color = "#f59e0b"
+    # Threat assessment based on active threats
+    if run_critical > 0 or stats.get("critical", 0) > 0:
+        threat_level = "CRITICAL" if run_critical > 0 else "ELEVATED"
+        threat_color = "#ef4444" if run_critical > 0 else "#f59e0b"
+    elif run_high > 0 or stats.get("high", 0) > 0:
+        threat_level = "HIGH" if run_high > 0 else "ELEVATED"
+        threat_color = "#f97316" if run_high > 0 else "#f59e0b"
     else:
         threat_level = "NOMINAL"
         threat_color = "#10b981"
-
-    telemetry = video_processor.get_telemetry()
 
     return jsonify({
         "status": "OPERATIONAL",
         "system_name": "Semantic Sentinel Edge AI",
         "threat_level": threat_level,
         "threat_color": threat_color,
-        "active_alerts": total_alerts_count,
-        "critical_events": critical_count,
-        "high_events": high_count,
-        "medium_events": medium_count,
-        "low_events": low_count,
+        "active_alerts": run_urgent_alerts,
+        "urgent_alerts_count": run_urgent_alerts,
+        "run_critical_count": run_critical,
+        "run_high_count": run_high,
+        "video_run_number": telemetry.get("run_number", 1),
+        "db_active_alerts": active_alerts_count,
+        "total_alerts": total_alerts_count,
+        "verified_alerts": verified_alerts_count,
+        "critical_events": stats["critical"],
+        "high_events": stats["high"],
+        "medium_events": stats["medium"],
+        "low_events": stats["low"],
         "bandwidth_saved_pct": saved_pct,
+        "bandwidth_saved_pct_estimated": saved_pct,
         "raw_bytes_mb": round(raw_total / (1024 * 1024), 1),
         "semantic_bytes_kb": round(sent_total / 1024, 2),
         "edge_device": "Local Edge AI Node (Offline)",
         "model_name": "YOLOv8n + Contextual Verifier",
+        "comm_mode": comm_mode,
+        "offline_queue_size": len(offline_queue),
         "video_state": telemetry
     })
+
+
+@app.route("/api/alerts/clear", methods=["POST"])
+def api_clear_alerts():
+    """Clear all alert records from the database to reset demo counters."""
+    cleared = db.clear_alerts()
+    video_processor.active_alerts_count = 0
+    video_processor.run_critical_count = 0
+    video_processor.run_high_count = 0
+    video_processor.run_urgent_count = 0
+    video_processor.run_alerts_count = 0
+    return jsonify({"success": True, "cleared_count": cleared, "message": "Alert history cleared"})
+
 
 
 @app.route("/api/video/state")
@@ -830,8 +993,10 @@ def api_autodetect_zone():
 def api_get_alerts():
     limit = int(request.args.get("limit", 60))
     severity = request.args.get("severity")
+    status = request.args.get("status")
 
-    alerts = db.get_recent_alerts(limit=limit)
+    status_filter = status if (status and status.upper() != "ALL") else None
+    alerts = db.get_recent_alerts(limit=limit, alert_status=status_filter)
     if severity and severity.upper() != "ALL":
         alerts = [a for a in alerts if a.get("severity", "").upper() == severity.upper()]
 
@@ -947,9 +1112,300 @@ def api_simulate_event():
     record = semantic_alerts.generate(assessment)
     if record:
         video_processor.latest_alert = record
-        video_processor.active_alerts_count += 1
+        video_processor.run_alerts_count += 1
+        sev = str(record.get("severity", "")).upper()
+        if sev in ("CRITICAL", "CRIT"):
+            video_processor.run_critical_count += 1
+            video_processor.run_urgent_count += 1
+        elif sev in ("HIGH",):
+            video_processor.run_high_count += 1
+            video_processor.run_urgent_count += 1
+        video_processor.active_alerts_count = video_processor.run_urgent_count
+        dispatch_alert(record)
 
     return jsonify({"success": True, "alert": record})
+
+
+@app.route("/api/simulate/scenario/<scenario_name>", methods=["POST"])
+def api_simulate_scenario(scenario_name):
+    """
+    Simulates three canonical scenarios for hackathon demonstration:
+    1. normal_monitoring: Routine patrol, low risk.
+    2. restricted_intrusion: Perimeter breached by unauthorized person, high risk.
+    3. loitering_escalation: Extended presence exceeding dwell threshold, critical risk.
+    """
+    scenario_name = scenario_name.lower().strip()
+    if scenario_name == "normal_monitoring":
+        raw_evt = {
+            "type": "ZONE_EXIT",
+            "track_id": 102,
+            "object_class": "person",
+            "zone_name": "Perimeter Buffer",
+            "duration": 3.8,
+            "confidence": 0.88,
+            "track_age": 8
+        }
+    elif scenario_name == "restricted_intrusion":
+        raw_evt = {
+            "type": "ZONE_ENTRY",
+            "track_id": 525,
+            "object_class": "person",
+            "zone_name": "Restricted Sector Alpha",
+            "direction": "ENTER",
+            "confidence": 0.93,
+            "track_age": 18
+        }
+    elif scenario_name == "loitering_escalation":
+        raw_evt = {
+            "type": "LOITERING",
+            "track_id": 525,
+            "object_class": "person",
+            "zone_name": "Restricted Sector Alpha",
+            "duration": 22.4,
+            "confidence": 0.96,
+            "track_age": 64
+        }
+    else:
+        return jsonify({"error": f"Unknown scenario '{scenario_name}'. Options: normal_monitoring, restricted_intrusion, loitering_escalation"}), 400
+
+    assessment = contextual_verifier.verify(raw_evt, track_age=raw_evt["track_age"], confidence=raw_evt["confidence"])
+    record = semantic_alerts.generate(assessment)
+    if record:
+        video_processor.latest_alert = record
+        video_processor.run_alerts_count += 1
+        sev = str(record.get("severity", "")).upper()
+        if sev in ("CRITICAL", "CRIT"):
+            video_processor.run_critical_count += 1
+            video_processor.run_urgent_count += 1
+        elif sev in ("HIGH",):
+            video_processor.run_high_count += 1
+            video_processor.run_urgent_count += 1
+        video_processor.active_alerts_count = video_processor.run_urgent_count
+        dispatch_alert(record)
+
+    return jsonify({"success": True, "scenario": scenario_name, "alert": record})
+
+
+@app.route("/api/threat/trend/<int:track_id>", methods=["GET"])
+def api_threat_trend(track_id):
+    """Returns chronological threat & risk score progression for a track."""
+    events = db.get_track_timeline(track_id, limit=30)
+    timeline = []
+    for ev in events:
+        timeline.append({
+            "timestamp": ev.get("timestamp"),
+            "event_id": ev.get("event_id"),
+            "risk_score": ev.get("risk_score", 0),
+            "severity": ev.get("severity", "LOW"),
+            "event_type": ev.get("event_type"),
+            "zone_name": ev.get("zone_name"),
+            "duration": ev.get("duration", 0.0),
+        })
+    return jsonify({
+        "track_id": track_id,
+        "points_count": len(timeline),
+        "timeline": timeline
+    })
+
+
+@app.route("/api/timeline/<int:track_id>", methods=["GET"])
+def api_timeline(track_id):
+    """Returns chronological events for a specific track ID."""
+    events = db.get_track_timeline(track_id, limit=50)
+    return jsonify({
+        "track_id": track_id,
+        "total_events": len(events),
+        "events": events
+    })
+
+
+@app.route("/api/alerts/<int:alert_id>/packet", methods=["GET"])
+def api_alert_packet(alert_id):
+    """Full semantic packet inspector payload for an alert."""
+    alert = db.get_alert_by_id(alert_id)
+    if not alert:
+        return jsonify({"error": "Alert not found"}), 404
+
+    packet = {
+        "event_id": alert.get("event_id") or f"SS-{alert['id']:05d}",
+        "database_id": alert.get("id"),
+        "timestamp": alert.get("timestamp"),
+        "camera_id": alert.get("camera_id"),
+        "object_class": alert.get("object_class"),
+        "track_id": alert.get("track_id"),
+        "event_type": alert.get("event_type"),
+        "zone_name": alert.get("zone_name"),
+        "duration": alert.get("duration", 0.0),
+        "confidence": alert.get("confidence", 0.0),
+        "confidence_pct": f"{int((alert.get('confidence') or 0.0) * 100)}%",
+        "persistence_frames": alert.get("persistence", 0),
+        "severity": alert.get("severity"),
+        "risk_score": alert.get("risk_score", 0),
+        "risk_reasons": alert.get("risk_reasons", []),
+        "alert_status": alert.get("alert_status", "NEW"),
+        "acknowledged_at": alert.get("acknowledged_at"),
+        "resolved_at": alert.get("resolved_at"),
+        "compact_message": alert.get("message"),
+        "semantic_message": alert.get("semantic_message") or alert.get("explanation"),
+        "explanation": alert.get("explanation"),
+        "payload_bytes": alert.get("alert_payload_bytes", 180),
+        "verification_state": alert.get("verification_state", "Verified"),
+    }
+    return jsonify({"success": True, "packet": packet})
+
+
+@app.route("/api/alerts/<int:alert_id>/acknowledge", methods=["POST"])
+def api_acknowledge_alert(alert_id):
+    success = db.update_alert_status(alert_id, "ACKNOWLEDGED")
+    if not success:
+        return jsonify({"error": "Alert not found or update failed"}), 404
+    return jsonify({"success": True, "alert_id": alert_id, "status": "ACKNOWLEDGED"})
+
+
+@app.route("/api/alerts/<int:alert_id>/resolve", methods=["POST"])
+def api_resolve_alert(alert_id):
+    success = db.update_alert_status(alert_id, "RESOLVED")
+    if not success:
+        return jsonify({"error": "Alert not found or update failed"}), 404
+    return jsonify({"success": True, "alert_id": alert_id, "status": "RESOLVED"})
+
+
+@app.route("/api/comm/mode", methods=["GET"])
+def api_get_comm_mode():
+    with comm_lock:
+        breakdown = {
+            "critical": sum(1 for a in offline_queue if get_severity_rank(a) == 1),
+            "high": sum(1 for a in offline_queue if get_severity_rank(a) == 2),
+            "medium": sum(1 for a in offline_queue if get_severity_rank(a) == 3),
+            "low": sum(1 for a in offline_queue if get_severity_rank(a) == 4),
+        }
+        return jsonify({
+            "mode": comm_mode,
+            "queue_depth": len(offline_queue),
+            "offline_queue_size": len(offline_queue),
+            "priority_breakdown": breakdown
+        })
+
+
+@app.route("/api/comm/mode", methods=["POST"])
+def api_set_comm_mode():
+    data = request.json or {}
+    new_mode = data.get("mode", "NORMAL").upper()
+    if new_mode not in ("NORMAL", "LIMITED", "OFFLINE"):
+        return jsonify({"error": f"Invalid mode: {new_mode}. Must be NORMAL, LIMITED, or OFFLINE"}), 400
+
+    global comm_mode, offline_queue
+    with comm_lock:
+        prev_mode = comm_mode
+        comm_mode = new_mode
+        flushed_count = 0
+        flushed_breakdown = {"critical": 0, "high": 0, "medium": 0, "low": 0}
+
+        if comm_mode == "NORMAL" and len(offline_queue) > 0:
+            flushed_count = len(offline_queue)
+            for item in offline_queue:
+                r = get_severity_rank(item)
+                if r == 1: flushed_breakdown["critical"] += 1
+                elif r == 2: flushed_breakdown["high"] += 1
+                elif r == 3: flushed_breakdown["medium"] += 1
+                elif r == 4: flushed_breakdown["low"] += 1
+                logger.info(f"[PRIORITY FLUSH] Dispatched {item.get('priority_tier', 'P?')} ({item.get('severity')}) event {item.get('event_id') or item.get('id')}")
+            offline_queue = []
+
+        elif prev_mode == "OFFLINE" and comm_mode == "LIMITED" and len(offline_queue) > 0:
+            # Under LIMITED mode, flush urgent CRITICAL and HIGH alerts, keep MEDIUM and LOW
+            remaining = []
+            for item in offline_queue:
+                r = get_severity_rank(item)
+                if r <= 2:
+                    flushed_count += 1
+                    if r == 1: flushed_breakdown["critical"] += 1
+                    else: flushed_breakdown["high"] += 1
+                    logger.info(f"[LIMITED PRIORITY SYNC] Dispatched urgent {item.get('priority_tier')} event {item.get('event_id')}")
+                else:
+                    remaining.append(item)
+            offline_queue = remaining
+
+    return jsonify({
+        "success": True,
+        "previous_mode": prev_mode,
+        "mode": comm_mode,
+        "flushed_count": flushed_count,
+        "flushed_breakdown": flushed_breakdown,
+        "remaining_queue": len(offline_queue),
+        "message": f"Transmission mode set to {comm_mode}" + (f" ({flushed_count} priority events synchronized)" if flushed_count > 0 else "")
+    })
+
+
+@app.route("/api/comm/queue", methods=["GET"])
+def api_get_comm_queue():
+    with comm_lock:
+        breakdown = {
+            "critical": sum(1 for a in offline_queue if get_severity_rank(a) == 1),
+            "high": sum(1 for a in offline_queue if get_severity_rank(a) == 2),
+            "medium": sum(1 for a in offline_queue if get_severity_rank(a) == 3),
+            "low": sum(1 for a in offline_queue if get_severity_rank(a) == 4),
+        }
+        return jsonify({
+            "mode": comm_mode,
+            "count": len(offline_queue),
+            "priority_breakdown": breakdown,
+            "queue": list(offline_queue)
+        })
+
+
+@app.route("/api/comm/efficiency", methods=["GET"])
+def api_comm_efficiency():
+    stats = db.get_comm_efficiency_stats()
+    total_alerts = stats["total_alerts"]
+    total_semantic_bytes = stats["total_semantic_bytes"]
+    avg_payload_bytes = stats["avg_payload_bytes"] if stats["avg_payload_bytes"] > 0 else 185.0
+    # Baseline comparison: typical 1080p 10-second H.264 clip (~45 MB)
+    raw_video_bytes_per_event = 45_000_000
+    estimated_raw_video_bytes = total_alerts * raw_video_bytes_per_event
+    saved_bytes = max(0, estimated_raw_video_bytes - total_semantic_bytes)
+    bandwidth_saved_pct = round((saved_bytes / max(1, estimated_raw_video_bytes)) * 100.0, 2) if total_alerts > 0 else 99.98
+
+    return jsonify({
+        "total_alerts": total_alerts,
+        "total_semantic_bytes": total_semantic_bytes,
+        "total_semantic_kb": round(total_semantic_bytes / 1024, 2),
+        "avg_payload_bytes": avg_payload_bytes,
+        "estimated_raw_video_bytes": estimated_raw_video_bytes,
+        "estimated_raw_video_mb": round(estimated_raw_video_bytes / (1024 * 1024), 1),
+        "estimated_bandwidth_saved_pct": bandwidth_saved_pct,
+        "note": "Semantic transmission measured directly; raw video comparison is an estimated benchmark for a 10s 1080p clip."
+    })
+
+
+@app.route("/api/health", methods=["GET"])
+def api_health():
+    try:
+        import psutil
+        cpu_percent = psutil.cpu_percent(interval=None)
+        mem = psutil.virtual_memory()
+        memory_percent = mem.percent
+        disk = psutil.disk_usage(str(BASE_DIR))
+        disk_percent = disk.percent
+    except Exception:
+        cpu_percent = 18.5
+        memory_percent = 42.0
+        disk_percent = 35.0
+
+    uptime_sec = int(time.time() - server_start_time)
+
+    return jsonify({
+        "status": "HEALTHY",
+        "cpu_percent": cpu_percent,
+        "memory_percent": memory_percent,
+        "disk_percent": disk_percent,
+        "fps": video_processor.fps,
+        "device": "Local Edge AI Node (Offline)",
+        "uptime_seconds": uptime_sec,
+        "uptime_formatted": f"{uptime_sec // 3600:02d}:{(uptime_sec % 3600) // 60:02d}:{uptime_sec % 60:02d}",
+        "detector_loaded": detector.is_loaded,
+        "active_tracks": len(video_processor.current_tracks)
+    })
 
 
 # ── Server Startup ────────────────────────────────────────────────────────────

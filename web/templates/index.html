@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Semantic Sentinel — AI-Powered Threat Intelligence</title>
-  <meta name="description" content="Semantic Sentinel: Edge AI that converts raw video into compact semantic alerts. No video transmission. Just intelligence.">
+  <title>Semantic Sentinel — Edge AI Threat Intelligence</title>
+  <meta name="description" content="Semantic Sentinel: Offline Edge AI converting video into compact semantic alert payloads. Zero video transmission. Complete situational awareness.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
@@ -25,7 +25,7 @@
       </div>
       <div>
         <h1 class="brand-title">Semantic Sentinel</h1>
-        <p class="brand-tagline">EDGE AI · OFFLINE · ZERO VIDEO TRANSMISSION</p>
+        <p class="brand-tagline">EDGE AI &middot; OFFLINE &middot; ZERO VIDEO TRANSMISSION</p>
       </div>
     </div>
 
@@ -43,6 +43,10 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
         Alerts <span class="badge-count" id="navAlertCount">0</span>
       </button>
+      <button class="nav-tab" data-tab="analyzer" id="tabBtnAnalyzer" role="tab">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        Analyzer
+      </button>
       <button class="nav-tab" data-tab="settings" id="tabBtnSettings" role="tab">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
         Settings
@@ -52,14 +56,14 @@
     <div class="header-right">
       <div class="edge-pill">
         <span class="pulse-indicator"></span>
-        <span>EDGE NODE: ACTIVE</span>
+        <span id="commHeaderPill">COMM: NORMAL</span>
       </div>
       <div class="clock-display" id="clockDisplay">--:--:--</div>
     </div>
   </header>
 
   <!-- ════════════════════════════════════════════
-       MAIN CONTENT
+       MAIN CONTAINER
   ════════════════════════════════════════════ -->
   <main class="main-container">
 
@@ -68,7 +72,7 @@
     ══════════════════════════════════════════ -->
     <section class="tab-pane active" id="pane-dashboard" role="tabpanel">
 
-      <!-- 4 KPI Cards -->
+      <!-- 4 Primary KPI Cards -->
       <div class="kpi-grid">
         <div class="kpi-card">
           <div class="kpi-icon-box cyan">👤</div>
@@ -88,7 +92,7 @@
           <div class="kpi-icon-box red">⚠️</div>
           <div class="kpi-info">
             <div class="kpi-val" id="dashAlerts">0</div>
-            <div class="kpi-name">Active Alerts</div>
+            <div class="kpi-name">Critical & High (Current Run)</div>
           </div>
         </div>
         <div class="kpi-card">
@@ -100,7 +104,7 @@
         </div>
       </div>
 
-      <!-- Dashboard split: Alert Feed | Risk Panel -->
+      <!-- Dashboard Split: Alert Feed (Left) | Controls & Telemetry (Right) -->
       <div class="dashboard-split">
 
         <!-- LEFT: Semantic Alerts Feed -->
@@ -110,54 +114,114 @@
               <span class="title-accent red"></span>
               <h2>Semantic Alert Feed</h2>
             </div>
-            <button class="btn-ghost" id="refreshAlertsBtn" onclick="fetchAlerts()">↻ Refresh</button>
+            <div class="panel-actions">
+              <button class="btn-ghost" id="refreshAlertsBtn" onclick="fetchAlerts()">↻ Refresh</button>
+            </div>
           </div>
-          <p class="panel-desc">Only verified, high-confidence events are transmitted. No raw video. Only meaning.</p>
+          <p class="panel-desc">Raw video stays on edge device. Only verified, explainable semantic events are transmitted.</p>
 
           <div class="semantic-feed-list" id="dashAlertFeed">
-            <div class="empty-state">Standby — no verified alerts detected yet.</div>
+            <div class="empty-state">Standby &mdash; monitoring active sector. Verified events will appear here.</div>
           </div>
         </div>
 
-        <!-- RIGHT: Risk Breakdown + Demo -->
+        <!-- RIGHT: Side Controls, Comm Simulator & Health -->
         <div class="dash-panel right-panel">
-          <div class="panel-header">
-            <div class="panel-title">
-              <span class="title-accent amber"></span>
-              <h2>Threat Breakdown</h2>
+
+          <!-- Threat Breakdown -->
+          <div class="sub-panel">
+            <div class="panel-header-mini">
+              <h3>Threat Breakdown</h3>
+            </div>
+            <div class="risk-breakdown">
+              <div class="risk-pill critical">
+                <span class="dot"></span>
+                <span class="label">Critical</span>
+                <strong id="riskCountCritical">0</strong>
+              </div>
+              <div class="risk-pill high">
+                <span class="dot"></span>
+                <span class="label">High</span>
+                <strong id="riskCountHigh">0</strong>
+              </div>
+              <div class="risk-pill medium">
+                <span class="dot"></span>
+                <span class="label">Medium</span>
+                <strong id="riskCountMedium">0</strong>
+              </div>
+              <div class="risk-pill low">
+                <span class="dot"></span>
+                <span class="label">Low</span>
+                <strong id="riskCountLow">0</strong>
+              </div>
             </div>
           </div>
 
-          <div class="risk-breakdown">
-            <div class="risk-pill critical">
-              <span class="dot"></span>
-              <span class="label">Critical</span>
-              <strong id="riskCountCritical">0</strong>
+          <!-- Communication Mode Simulator -->
+          <div class="sub-panel comm-simulator-card">
+            <div class="panel-header-mini">
+              <h3>Transmission Mode</h3>
+              <span class="comm-state-badge" id="commStatusBadge">🟢 NORMAL</span>
             </div>
-            <div class="risk-pill high">
-              <span class="dot"></span>
-              <span class="label">High</span>
-              <strong id="riskCountHigh">0</strong>
+            <p class="sub-desc">Simulate resilient multi-tier operational connectivity conditions.</p>
+            <div class="comm-button-group">
+              <button class="btn-comm active" id="btnCommNormal" onclick="setCommMode('NORMAL')">
+                <span class="comm-icon">🟢</span>
+                <span class="comm-label">NORMAL</span>
+                <small>Direct Transmit</small>
+              </button>
+              <button class="btn-comm" id="btnCommLimited" onclick="setCommMode('LIMITED')">
+                <span class="comm-icon">🟡</span>
+                <span class="comm-label">LIMITED</span>
+                <small>Low-Bandwidth</small>
+              </button>
+              <button class="btn-comm" id="btnCommOffline" onclick="setCommMode('OFFLINE')">
+                <span class="comm-icon">🔴</span>
+                <span class="comm-label">OFFLINE</span>
+                <small>Local Queue</small>
+              </button>
             </div>
-            <div class="risk-pill medium">
-              <span class="dot"></span>
-              <span class="label">Medium</span>
-              <strong id="riskCountMedium">0</strong>
-            </div>
-            <div class="risk-pill low">
-              <span class="dot"></span>
-              <span class="label">Low</span>
-              <strong id="riskCountLow">0</strong>
+            <div class="comm-queue-indicator" id="commQueueRow">
+              <div class="queue-row-top">
+                <span>Priority Queue:</span>
+                <strong id="commQueueCount">0 alerts buffered</strong>
+                <button class="btn-mini-sync" id="btnSyncQueue" onclick="syncOfflineQueue()">Sync Now</button>
+              </div>
+              <div class="priority-queue-tiers">
+                <span class="q-tier q-crit" title="P1 Critical priority">P1 Crit: <strong id="qCountCrit">0</strong></span>
+                <span class="q-tier q-high" title="P2 High priority">P2 High: <strong id="qCountHigh">0</strong></span>
+                <span class="q-tier q-med" title="P3 Medium priority">P3 Med: <strong id="qCountMed">0</strong></span>
+                <span class="q-tier q-low" title="P4 Low priority">P4 Low: <strong id="qCountLow">0</strong></span>
+              </div>
             </div>
           </div>
 
-          <!-- Demo Scenario Injector -->
-          <div class="quick-injector">
-            <div class="inj-title">Demo Scenario Injector</div>
-            <div class="inj-buttons">
-              <button class="btn-inj red" id="btnInjectZone" onclick="injectScenario('zone_entry')">⚠️ Force Zone Entry Alert</button>
-              <button class="btn-inj purple" id="btnInjectLoiter" onclick="injectScenario('loitering')">🔴 Force Loitering Alert</button>
-              <button class="btn-inj amber" id="btnInjectBag" onclick="injectScenario('abandoned_object')">🎒 Force Unattended Gear</button>
+          <!-- Communication Efficiency (Measured Stats) -->
+          <div class="sub-panel efficiency-card">
+            <div class="panel-header-mini">
+              <h3>Bandwidth Efficiency</h3>
+              <span class="badge-est-pill">DIRECTLY MEASURED</span>
+            </div>
+            <div class="efficiency-stats-grid">
+              <div class="eff-stat">
+                <div class="eff-num" id="effTotalAlerts">0</div>
+                <div class="eff-label">Semantic Alerts</div>
+              </div>
+              <div class="eff-stat">
+                <div class="eff-num" id="effTotalKb">0.0 KB</div>
+                <div class="eff-label">Transmitted Data</div>
+              </div>
+              <div class="eff-stat">
+                <div class="eff-num" id="effAvgBytes">185 B</div>
+                <div class="eff-label">Avg Packet Size</div>
+              </div>
+              <div class="eff-stat">
+                <div class="eff-num highlight" id="effSavedPct">99.98%</div>
+                <div class="eff-label">Bandwidth Saved <small>(est.)</small></div>
+              </div>
+            </div>
+            <div class="eff-note">
+              <span>ℹ</span> Semantic alerts measured from local SQLite ledger. Video baseline estimated at 45MB per 10s 1080p stream.
             </div>
           </div>
 
@@ -188,20 +252,20 @@
           <div class="demo-dropdown-wrap">
             <button class="btn-source active" id="btnDemoDropdown" onclick="toggleDemoDropdown()">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-              <span id="activeDemoLabel">Demo: fence.mp4</span> ▾
+              <span id="activeDemoLabel">Demo: fence.mp4</span> &#9662;
             </button>
             <div class="demo-menu" id="demoMenu">
               <div class="demo-item active" onclick="selectDemoVideo('fence.mp4', 'Perimeter Fence Intrusion')" id="demoOpt1">
                 <strong>fence.mp4</strong>
-                <span>Fence breach · Zone entry</span>
+                <span>Fence breach &middot; Zone entry</span>
               </div>
               <div class="demo-item" onclick="selectDemoVideo('loiter.mp4', 'Restricted Zone Loitering')" id="demoOpt2">
                 <strong>loiter.mp4</strong>
-                <span>Prolonged dwell · Critical threat</span>
+                <span>Prolonged dwell &middot; Critical threat</span>
               </div>
               <div class="demo-item" onclick="selectDemoVideo('bag.mp4', 'Abandoned Baggage')" id="demoOpt3">
                 <strong>bag.mp4</strong>
-                <span>Stationary gear · Unattended</span>
+                <span>Stationary gear &middot; Unattended</span>
               </div>
               <div class="demo-item" onclick="selectDemoVideo('VID-20261003-WA0020.mp4', 'Field Surveillance')" id="demoOpt4">
                 <strong>VID-20261003...</strong>
@@ -244,14 +308,14 @@
           </div>
 
           <div class="drawing-instructions" id="drawingHint" style="display: none;">
-            <span>ℹ <strong>Zone Drawing Mode:</strong> Click on the video to place perimeter points. Double-click or click the first point to close and save the zone.</span>
+            <span>ℹ <strong>Zone Drawing Mode:</strong> Click on the video to place perimeter vertices. Double-click or click near the starting point to complete and save.</span>
           </div>
         </div>
 
         <!-- Live Status Card -->
         <div class="live-status-card">
           <div class="status-card-header">
-            <h3>Live Detection</h3>
+            <h3>Live Telemetry</h3>
             <span class="fps-pill" id="fpsDisplay">-- FPS</span>
           </div>
 
@@ -266,7 +330,7 @@
             </div>
             <div class="stat-box">
               <div class="stat-number red" id="statAlerts">0</div>
-              <div class="stat-label">Alerts</div>
+              <div class="stat-label">Crit & High Alerts</div>
             </div>
           </div>
 
@@ -285,7 +349,7 @@
           <div class="tracks-card">
             <div class="tracks-title">Active Track IDs</div>
             <div class="tracks-list" id="tracksList">
-              <div class="track-empty-note">Awaiting detection…</div>
+              <div class="track-empty-note">Awaiting detection&hellip;</div>
             </div>
           </div>
 
@@ -296,22 +360,31 @@
 
 
     <!-- ══════════════════════════════════════════
-         3. ALERTS TAB
+         3. ALERTS TAB (WITH LIFECYCLE MANAGEMENT)
     ══════════════════════════════════════════ -->
     <section class="tab-pane" id="pane-alerts" role="tabpanel">
       <div class="alerts-view-card">
 
         <div class="alerts-toolbar">
           <div class="filter-group">
-            <span class="filter-label">Filter:</span>
+            <span class="filter-label">Severity:</span>
             <button class="filter-btn active" id="fAll" onclick="setSeverityFilter('ALL', this)">All</button>
             <button class="filter-btn red" id="fCritical" onclick="setSeverityFilter('CRITICAL', this)">Critical</button>
             <button class="filter-btn orange" id="fHigh" onclick="setSeverityFilter('HIGH', this)">High</button>
             <button class="filter-btn amber" id="fMedium" onclick="setSeverityFilter('MEDIUM', this)">Medium</button>
             <button class="filter-btn green" id="fLow" onclick="setSeverityFilter('LOW', this)">Low</button>
           </div>
+
+          <div class="filter-group">
+            <span class="filter-label">Lifecycle:</span>
+            <button class="filter-btn active" id="flAll" onclick="setStatusFilter('ALL', this)">All</button>
+            <button class="filter-btn blue" id="flNew" onclick="setStatusFilter('NEW', this)">New</button>
+            <button class="filter-btn amber" id="flAck" onclick="setStatusFilter('ACKNOWLEDGED', this)">Acknowledged</button>
+            <button class="filter-btn green" id="flRes" onclick="setStatusFilter('RESOLVED', this)">Resolved</button>
+          </div>
+
           <div class="toolbar-right">
-            <input type="text" class="table-search" id="alertTableSearch" placeholder="Search event, object, reason…" oninput="filterAlertTable()">
+            <input type="text" class="table-search" id="alertTableSearch" placeholder="Search event, object, track…" oninput="filterAlertTable()">
             <button class="btn-export" id="btnExportJson" onclick="exportAlerts('json')">Export JSON</button>
             <button class="btn-export" id="btnExportCsv" onclick="exportAlerts('csv')">Export CSV</button>
           </div>
@@ -321,17 +394,19 @@
           <table class="semantic-table" id="alertsTable" aria-label="Semantic alerts table">
             <thead>
               <tr>
-                <th style="width:110px;">Severity</th>
-                <th style="width:180px;">Event</th>
-                <th style="width:120px;">Object</th>
-                <th style="width:90px;">Track ID</th>
-                <th style="width:105px;">Time</th>
-                <th>Why It's Dangerous</th>
+                <th style="width:100px;">Severity</th>
+                <th style="width:105px;">Event ID</th>
+                <th style="width:150px;">Event Type</th>
+                <th style="width:110px;">Target</th>
+                <th style="width:120px;">Risk Score</th>
+                <th style="width:85px;">Time</th>
+                <th style="width:110px;">Status</th>
+                <th style="width:160px; text-align:right;">Actions</th>
               </tr>
             </thead>
             <tbody id="alertsTableBody">
               <tr>
-                <td colspan="6" class="empty-table-cell">Loading verified alerts…</td>
+                <td colspan="8" class="empty-table-cell">Loading verified alerts&hellip;</td>
               </tr>
             </tbody>
           </table>
@@ -342,14 +417,99 @@
 
 
     <!-- ══════════════════════════════════════════
-         4. SETTINGS TAB
+         4. ANALYZER TAB (TACTICAL & PRIORITY TRANSMISSION)
+    ══════════════════════════════════════════ -->
+    <section class="tab-pane" id="pane-analyzer" role="tabpanel">
+
+      <!-- Tactical 2D Map & Severity-Based Priority Queue Split -->
+      <div class="analyzer-grid">
+
+        <!-- Tactical 2D Situation Canvas -->
+        <div class="analyzer-panel">
+          <div class="panel-header">
+            <div class="panel-title">
+              <span class="title-accent cyan"></span>
+              <h2>Tactical 2D Situation View</h2>
+            </div>
+            <span class="fps-pill" id="tacticalTrackCount">0 Tracks</span>
+          </div>
+          <p class="panel-desc">Real-time coordinate mapping of active security sectors and detected entities.</p>
+          <div class="tactical-canvas-wrap">
+            <canvas id="tacticalMapCanvas" width="560" height="340"></canvas>
+          </div>
+          <div class="tactical-legend">
+            <span class="legend-item"><span class="legend-dot zone"></span> Restricted Sector</span>
+            <span class="legend-item"><span class="legend-dot person"></span> Person (Safe)</span>
+            <span class="legend-item"><span class="legend-dot threat"></span> Intruder / Threat</span>
+            <span class="legend-item"><span class="legend-dot bag"></span> Object / Gear</span>
+          </div>
+        </div>
+
+        <!-- Severity-Based Priority Transmission Queue -->
+        <div class="analyzer-panel priority-queue-panel">
+          <div class="panel-header">
+            <div class="panel-title">
+              <span class="title-accent red"></span>
+              <h2>Severity-Based Priority Queue</h2>
+            </div>
+            <div class="panel-actions">
+              <button class="btn-ctrl primary" onclick="syncOfflineQueue()">Sync Now</button>
+            </div>
+          </div>
+          <p class="panel-desc">Alerts are buffered strictly by event severity rank. Critical events preempt routine detections and dispatch first upon link restoration.</p>
+
+          <div class="priority-hierarchy-banner">
+            <span class="ph-label">DISPATCH ORDER:</span>
+            <span class="ph-step crit">P1: CRITICAL</span> &rarr;
+            <span class="ph-step high">P2: HIGH</span> &rarr;
+            <span class="ph-step med">P3: MEDIUM</span> &rarr;
+            <span class="ph-step low">P4: LOW</span>
+          </div>
+
+          <div class="priority-counter-grid">
+            <div class="p-card crit">
+              <span class="p-card-tier">P1 CRITICAL</span>
+              <strong class="p-card-count" id="qCritVal">0</strong>
+            </div>
+            <div class="p-card high">
+              <span class="p-card-tier">P2 HIGH</span>
+              <strong class="p-card-count" id="qHighVal">0</strong>
+            </div>
+            <div class="p-card med">
+              <span class="p-card-tier">P3 MEDIUM</span>
+              <strong class="p-card-count" id="qMedVal">0</strong>
+            </div>
+            <div class="p-card low">
+              <span class="p-card-tier">P4 LOW</span>
+              <strong class="p-card-count" id="qLowVal">0</strong>
+            </div>
+          </div>
+
+          <div class="queue-list-wrap">
+            <div class="queue-list-hdr">
+              <span>QUEUED SEMANTIC PACKETS</span>
+              <span id="queueTotalCountBadge">0 Total</span>
+            </div>
+            <div class="queue-list" id="analyzerQueueList">
+              <div class="empty-state">Queue is empty &mdash; all alerts transmitted in real time.</div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+    </section>
+
+
+    <!-- ══════════════════════════════════════════
+         5. SETTINGS TAB
     ══════════════════════════════════════════ -->
     <section class="tab-pane" id="pane-settings" role="tabpanel">
       <div class="settings-card-wrapper">
         <div class="settings-box">
           <div class="settings-header">
             <h2>System Configuration</h2>
-            <p>Adjust contextual evaluation thresholds for offline edge AI inference.</p>
+            <p>Fine-tune edge detection, tracking heuristics, and loitering escalation thresholds.</p>
           </div>
 
           <div class="setting-item">
@@ -385,9 +545,9 @@
           <div class="setting-item">
             <div class="setting-meta">
               <span>Edge AI Model</span>
-              <strong style="color: #2563eb; font-family: 'Space Mono', monospace; font-size: 0.75rem;">YOLOv8n · Offline CPU</strong>
+              <strong style="color: #2563eb; font-family: 'Space Mono', monospace; font-size: 0.75rem;">YOLOv8n &middot; Offline CPU</strong>
             </div>
-            <span class="setting-desc">Runs 100% locally — no internet, no cloud, no video transmission required.</span>
+            <span class="setting-desc">Runs 100% locally &mdash; no internet, no cloud, zero raw video transmission required.</span>
           </div>
 
           <div class="settings-actions">
@@ -399,6 +559,109 @@
     </section>
 
   </main>
+
+
+  <!-- ════════════════════════════════════════════
+       SEMANTIC PACKET INSPECTOR MODAL
+  ════════════════════════════════════════════ -->
+  <div class="modal-backdrop" id="packetModal" style="display: none;" onclick="handleBackdropClick(event)">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="modal-header-left">
+          <span class="modal-badge-id" id="modalEventId">SS-01001</span>
+          <span class="severity-pill critical" id="modalSeverity">CRITICAL</span>
+          <span class="lifecycle-pill" id="modalStatus">NEW</span>
+        </div>
+        <button class="modal-close-btn" onclick="closePacketModal()">&times;</button>
+      </div>
+
+      <div class="modal-body">
+
+        <!-- Human-Readable Semantic Statement -->
+        <div class="packet-section highlight-box">
+          <div class="section-label">HUMAN-READABLE SEMANTIC MESSAGE</div>
+          <div class="packet-semantic-msg" id="modalSemanticMsg">
+            Loading semantic statement&hellip;
+          </div>
+        </div>
+
+        <!-- Metadata Grid -->
+        <div class="packet-grid">
+          <div class="packet-grid-item">
+            <span class="pg-lbl">Timestamp</span>
+            <strong class="pg-val" id="modalTimestamp">--</strong>
+          </div>
+          <div class="packet-grid-item">
+            <span class="pg-lbl">Camera ID</span>
+            <strong class="pg-val" id="modalCamera">SENTINEL-EDGE</strong>
+          </div>
+          <div class="packet-grid-item">
+            <span class="pg-lbl">Object Class</span>
+            <strong class="pg-val" id="modalObjectClass">person</strong>
+          </div>
+          <div class="packet-grid-item">
+            <span class="pg-lbl">Track ID</span>
+            <strong class="pg-val cyan" id="modalTrackId">#--</strong>
+          </div>
+          <div class="packet-grid-item">
+            <span class="pg-lbl">Zone</span>
+            <strong class="pg-val" id="modalZone">Restricted Sector Alpha</strong>
+          </div>
+          <div class="packet-grid-item">
+            <span class="pg-lbl">Dwell Duration</span>
+            <strong class="pg-val" id="modalDuration">0.0s</strong>
+          </div>
+          <div class="packet-grid-item">
+            <span class="pg-lbl">Detection Confidence</span>
+            <strong class="pg-val" id="modalConfidence">0%</strong>
+          </div>
+          <div class="packet-grid-item">
+            <span class="pg-lbl">Persistence</span>
+            <strong class="pg-val" id="modalPersistence">0 frames</strong>
+          </div>
+        </div>
+
+        <!-- Rule-Based Risk Assessment & Checklist -->
+        <div class="packet-section">
+          <div class="section-label">RULE-BASED DETERMINISTIC RISK SCORE</div>
+          <div class="risk-score-display">
+            <div class="rs-gauge">
+              <span class="rs-val" id="modalRiskScore">0</span>
+              <span class="rs-max">/100</span>
+            </div>
+            <div class="rs-bar-wrap">
+              <div class="rs-bar-fill" id="modalRiskBar" style="width: 0%;"></div>
+            </div>
+          </div>
+          <div class="risk-reasons-checklist" id="modalRiskReasons">
+            <!-- Checklist items -->
+          </div>
+        </div>
+
+        <!-- Raw Pipe-Delimited Payload -->
+        <div class="packet-section">
+          <div class="section-label">TRANSMITTED COMPACT RAW PAYLOAD</div>
+          <pre class="packet-raw-pre" id="modalRawPayload">--</pre>
+          <div class="payload-comparison-badge">
+            <span>Payload Size: <strong id="modalPayloadBytes">184 Bytes</strong></span>
+            <span class="divider">&bull;</span>
+            <span>Raw Video Baseline: <strong>~45,000,000 Bytes</strong></span>
+            <span class="divider">&bull;</span>
+            <span class="green">99.98% Reduction</span>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn-ghost" onclick="copySemanticMessage()">📋 Copy Message</button>
+        <button class="btn-ctrl" id="btnModalAck" onclick="ackModalAlert()">✔ Acknowledge</button>
+        <button class="btn-ctrl green" id="btnModalResolve" onclick="resolveModalAlert()">✓ Mark Resolved</button>
+        <button class="btn-ctrl" onclick="closePacketModal()">Close</button>
+      </div>
+    </div>
+  </div>
+
 
   <!-- Toast Notifications -->
   <div class="toast-stack" id="toastStack" aria-live="polite"></div>

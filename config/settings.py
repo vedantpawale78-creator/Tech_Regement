@@ -15,7 +15,7 @@ ZONES_DB_PATH = os.path.join(PROJECT_ROOT, "data", "zones.json")
 CAMERAS_DB_PATH = os.path.join(PROJECT_ROOT, "data", "cameras.json")
 
 # ── Detection Defaults ────────────────────────────────────────────────────────
-DEFAULT_CONFIDENCE = 0.40
+DEFAULT_CONFIDENCE = 0.25
 DEFAULT_IOU = 0.50
 
 # ── Verification Thresholds ───────────────────────────────────────────────────
