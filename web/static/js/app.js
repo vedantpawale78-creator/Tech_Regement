@@ -110,9 +110,6 @@ async function fetchStatus() {
     setText('dashAlerts', urgentCount);
     setText('dashCritical', d.run_critical_count ?? 0);
 
-    // Nav badge - ONLY Critical and High alerts, refreshed after every run of video
-    setText('navAlertCount', urgentCount);
-
     // Risk Breakdown
     setText('riskCountCritical', d.critical_events || 0);
     setText('riskCountHigh', d.high_events || 0);
@@ -160,10 +157,9 @@ async function fetchVideoState() {
     setText('statPersons', d.persons_count || 0);
     setText('statObjects', d.objects_count || 0);
 
-    // Alert count beside alerts: ONLY Critical & High, refreshed after every run of video
+    // Alert telemetry beside video
     const runUrgent = (d.run_urgent_count !== undefined) ? d.run_urgent_count : (d.active_alerts_count || 0);
     setText('statAlerts', runUrgent);
-    setText('navAlertCount', runUrgent);
     setText('dashAlerts', runUrgent);
 
     // Save for tactical map
