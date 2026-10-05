@@ -504,36 +504,49 @@ class Database:
                 "active_high_alerts": active_high,
             }
 
-    def get_alert_statistics(self) -> dict:
+    def get_alert_statistics(self, today_only: bool = True) -> dict:
         """
-        Returns accurate aggregated statistics across the full database without arbitrary query limits:
-        - total: Total alerts recorded
-        - verified: Total verified alerts
-        - active: Alerts currently active (not resolved)
-        - new: Alerts with status NEW
-        - acknowledged: Alerts with status ACKNOWLEDGED
-        - resolved: Alerts with status RESOLVED
-        - critical: Count of CRITICAL severity alerts
-        - high: Count of HIGH severity alerts
-        - medium: Count of MEDIUM severity alerts
-        - low: Count of LOW severity alerts
+        Returns accurate aggregated statistics from the alerts table.
+        When today_only=True (default), threat breakdown counts (critical, high, medium, low)
+        are scoped to the current day and automatically reset after every day at midnight (00:00).
         """
+        today_str = datetime.now().strftime("%Y-%m-%d")
         with self.get_connection() as conn:
             cur = conn.cursor()
-            cur.execute("""
-                SELECT
-                    COUNT(*),
-                    COUNT(CASE WHEN verified = 1 THEN 1 END),
-                    COUNT(CASE WHEN alert_status != 'RESOLVED' THEN 1 END),
-                    COUNT(CASE WHEN alert_status = 'NEW' THEN 1 END),
-                    COUNT(CASE WHEN alert_status = 'ACKNOWLEDGED' THEN 1 END),
-                    COUNT(CASE WHEN alert_status = 'RESOLVED' THEN 1 END),
-                    COUNT(CASE WHEN UPPER(severity) = 'CRITICAL' THEN 1 END),
-                    COUNT(CASE WHEN UPPER(severity) = 'HIGH' THEN 1 END),
-                    COUNT(CASE WHEN UPPER(severity) = 'MEDIUM' THEN 1 END),
-                    COUNT(CASE WHEN UPPER(severity) = 'LOW' THEN 1 END)
-                FROM alerts
-            """)
+            if today_only:
+                cur.execute("""
+                    SELECT
+                        COUNT(*),
+                        COUNT(CASE WHEN verified = 1 THEN 1 END),
+                        COUNT(CASE WHEN alert_status != 'RESOLVED' THEN 1 END),
+                        COUNT(CASE WHEN alert_status = 'NEW' THEN 1 END),
+                        COUNT(CASE WHEN alert_status = 'ACKNOWLEDGED' THEN 1 END),
+                        COUNT(CASE WHEN alert_status = 'RESOLVED' THEN 1 END),
+                        COUNT(CASE WHEN UPPER(severity) = 'CRITICAL' AND substr(timestamp, 1, 10) = ? THEN 1 END),
+                        COUNT(CASE WHEN UPPER(severity) = 'HIGH' AND substr(timestamp, 1, 10) = ? THEN 1 END),
+                        COUNT(CASE WHEN UPPER(severity) = 'MEDIUM' AND substr(timestamp, 1, 10) = ? THEN 1 END),
+                        COUNT(CASE WHEN UPPER(severity) = 'LOW' AND substr(timestamp, 1, 10) = ? THEN 1 END),
+                        COUNT(CASE WHEN substr(timestamp, 1, 10) = ? THEN 1 END),
+                        COUNT(CASE WHEN verified = 1 AND substr(timestamp, 1, 10) = ? THEN 1 END)
+                    FROM alerts
+                """, (today_str, today_str, today_str, today_str, today_str, today_str))
+            else:
+                cur.execute("""
+                    SELECT
+                        COUNT(*),
+                        COUNT(CASE WHEN verified = 1 THEN 1 END),
+                        COUNT(CASE WHEN alert_status != 'RESOLVED' THEN 1 END),
+                        COUNT(CASE WHEN alert_status = 'NEW' THEN 1 END),
+                        COUNT(CASE WHEN alert_status = 'ACKNOWLEDGED' THEN 1 END),
+                        COUNT(CASE WHEN alert_status = 'RESOLVED' THEN 1 END),
+                        COUNT(CASE WHEN UPPER(severity) = 'CRITICAL' THEN 1 END),
+                        COUNT(CASE WHEN UPPER(severity) = 'HIGH' THEN 1 END),
+                        COUNT(CASE WHEN UPPER(severity) = 'MEDIUM' THEN 1 END),
+                        COUNT(CASE WHEN UPPER(severity) = 'LOW' THEN 1 END),
+                        COUNT(CASE WHEN substr(timestamp, 1, 10) = ? THEN 1 END),
+                        COUNT(CASE WHEN verified = 1 AND substr(timestamp, 1, 10) = ? THEN 1 END)
+                    FROM alerts
+                """, (today_str, today_str))
             row = cur.fetchone()
             return {
                 "total": row[0] or 0,
@@ -546,6 +559,8 @@ class Database:
                 "high": row[7] or 0,
                 "medium": row[8] or 0,
                 "low": row[9] or 0,
+                "today_total": row[10] or 0,
+                "today_verified": row[11] or 0,
             }
 
     def clear_alerts(self) -> int:
